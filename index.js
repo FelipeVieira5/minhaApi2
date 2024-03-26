@@ -1,187 +1,227 @@
 const expresso = require('express');
-const api = expresso();
+const { status } = require('express/lib/response');
+const minhaApi = expresso();
+const Sequelize = require('sequelize');
 
-api.use(expresso.json());api.use(expresso.json());
+minhaApi.use(expresso.json());minhaApi.use(expresso.json());
+const conexao = new Sequelize('nodejs', 'root', 'root', {
+    host: 'localhost', // URL
+    dialect: 'mysql'
+});
+
 const porta = 4300
 
+conexao.authenticate()
+    .then(() => {
+        console.log('Conectado com sucesso.');
+    }).catch((erro) => {
+        console.log('Deu Erro: ', erro);
+    });
 
+const Cargo = conexao.define('cargos', {
+    codigo: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    descricao: {
+        type: Sequelize.STRING(128),
+        allowNull: false
+    }
+});
+    
+const Usuario = conexao.define('usuarios', {
+    codigo: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    nome: {
+        type: Sequelize.STRING(128),
+        allowNull: false
+    },
+    idade: {
+        type: Sequelize.INTEGER,
+        allowNull: false
+    },
+    CPF: {
+        type: Sequelize.STRING(11),
+        allowNull: false
+    }
+});
+    
+Usuario.belongsTo(Cargo, { foreignKey: 'cargoId' });
 
-const receitasList = [
-    {
-        id: 1,
-        descricao: "Venda de motores",
-        valor: 120000,
-        categoria: "vendas"
-    }
-];
-const despesasList = [
-    {
-        id: 1,
-        descricao: "Salário de funcionarios",
-        valor: 20000,
-        categoria: "salario"
-    }
-];
-
-// Develor lista de receitas 
-api.get('/receita',(req, res) => {
-    let repostaReceita = '';
-
-    if(!receitasList.length){
-        res.status(500).send();
-        return;
-    }
-    for(const receita of receitasList){
-        repostaReceita += '<p>';
-        repostaReceita += "Id: "+receita.id+"<br>";
-        repostaReceita += "Descricao: "+receita.descricao+"<br>";
-        repostaReceita += "Valor: "+receita.valor+"<br>";
-        repostaReceita += "Categoria: "+receita.categoria+"<br>";
-        repostaReceita += '</p>\n';
-    }
-    res.send(repostaReceita);
+conexao.sync({ alter: true }).then(() => {
+    console.log('Tabelas sincronizadas com sucesso.');
+}).catch((erro) => {
+    console.log('Erro ao sincronizar tabelas: ', erro);
 });
 
-//buscar uma receita especifica
-api.get('/receita/visualizar/:idRecei',(req, res) => {
-    let repostaReceita = '';
 
-    const idReceita = req.params.idRecei;
-    const ObjReceita = funcionarioList.find(receita => parseInt(receita.id) === parseInt(idReceita));
 
-    if (!ObjReceita) {
-        res.status(500).send();
-        return;
-    }
-    repostaReceita += '<p>';
-    repostaReceita += "Id: "+ObjReceita.id+"<br>";
-    repostaReceita += "Descricao: "+ObjReceita.descricao+"<br>";
-    repostaReceita += "Valor: "+ObjReceita.valor+"<br>";
-    repostaReceita += "Categoria: "+ObjReceita.categoria+"<br>";
-    repostaReceita += '</p>\n';
-    res.send(repostaReceita);
+// Develor uma lista de usuários 
+minhaApi.get('/usuarios',async(req, res) => {
+    const usuarios = await Usuario.findAll();
+    res.send(usuarios);
 });
 
-//adicionar uma nova receira
-api.post('/receita/add',(req,res) => {
-   let maiorID = Math.max(...receitasList.map(({ id }) => id));
-   
-   const objReceita = {id: maiorID+1,descricao:req.body.descricao ,valor:req.body.valor, categoria:req.body.categoria};
-    if (!receitasList.length)maiorID=0;
-   receitasList.push(objReceita);
-    res.send('Usuario adicionado');
+
+//Devolver os dados de um usuário específico pelo seu ID na URL
+minhaApi.get('/usuarios/:idUsuario', async(req, res) => {
+    const id = parseInt(req.params.idUsuario);
+    const novoFuncionario = await Usuario.findByPk(id);
+    res.send(novoFuncionario);
+});
+/*
+{
+    "codigo":1,
+    "nome":"Rodrigo",
+    "idade":12,
+    "CPF":"23421354323",
+    "Cargo":1
+}
+*/
+minhaApi.post('/usuarios', async (req, res) => {
+    try {
+        const cargo = await Cargo.findByPk(req.body.Cargo);
+        if (!cargo) {
+            res.status(500).send('Cargo não encontrado');
+            return;
+        }
+        await Usuario.create({
+            nome: req.body.nome,
+            idade: req.body.idade,
+            CPF: req.body.CPF,
+            cargoId: req.body.Cargo
+        });
+        res.status(200).send('Usuário cadastrado com sucesso');
+    } catch (error) {
+        res.status(500).send('Ocorreu um erro: ' + error.message);
+    }
+});
+
+
+//Atualizar um usuário pelo ID na URL 
+minhaApi.put('/usuarios/:idUsuario',async (req,res) => {
+    const codUsuario = req.params.idUsuario;
+
+    try {
+        await Usuario.update({
+            codigo: parseInt(codUsuario),
+            nome:req.body.nome,
+            idade:req.body.idade,
+            CPF:req.body.CPF,
+            Cargo:req.body.Cargo
+        }, {
+            where: {
+                codigo: codUsuario
+            }
+        });
+
+        res.send();
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Erro ao atualizar o usuário');
+    }
+});
+
+
+// Requisição para deletar um úsuario pelo seu ID na URL
+minhaApi.delete('/usuarios/:idUsuario',async(req,res) => {
+    const codUsuario = req.params.idUsuario;
+
+    try {
+        const deletarUsuario = await Usuario.destroy({
+            where: {
+                codigo: codUsuario
+            }
+        });
+
+        if (!deletarUsuario) {
+            res.status(404).send('Usuario nao encontrado');
+        } else  res.send('Usuario deletado');
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Erro ao deletar o Usuario');
+    }
+});
+
+//========================================//
+//                CARGO                   //
+//========================================//
+
+// Requisição para buscar a lista de cargos
+minhaApi.get('/cargos', async (req,res) => {
+    const cargos = await Cargo.findAll();
+    res.send(cargos);
+});
+
+minhaApi.get('/usuarios/:idUsuario', async(req, res) => {
+
+});
+// Requisição para buscar um cargo pelo seu código
+minhaApi.get('/cargos/:codCargo',async (req, res) => {
+    const id = parseInt(req.params.codCargo);
+    const novoCargo = await Cargo.findByPk(id);
+    res.send(novoCargo);
+});
+
+// Requisição para criar um novo cargo
+minhaApi.post('/cargos',(req,res) => {
+    const descricao=req.body.descricao;
+    Cargo.create({descricao:descricao}).then(()=>{
+        res.send('Cargo cadastrado com sucesso');
+    }).catch((erro)=>{
+        res.send('Ocorreu erro: ',erro);
+    });
+    
     return;
 });
 
-//atualizar uma receita já existente
-api.put('/receita/atualizar/:idRecei',(req,res) => {
-    const idRecei = req.params.idRecei;
-    const novaReceita = {id: parseInt(idRecei),descricao:req.body.descricao ,valor:req.body.valor, categoria:req.body.categoria};
+//Atualizar um usuário pelo ID na URL 
+minhaApi.put('/cargos/:codCargos',async (req,res) => {
+    const codCargos = req.params.codCargos;
 
+    try {
+        await Cargo.update({
+            codigo: parseInt(codCargos),
+            descricao: req.body.descricao
+        }, {
+            where: {
+                codigo: codCargos
+            }
+        });
 
-    const objReceita = receitasList.find(receita => parseInt(receita.id) === parseInt(idRecei));
-
-    if (objReceita && novaReceita) {
-        objReceita.id = novaReceita.id;
-        objReceita.descricao = novaReceita.descricao;
-        objReceita.valor = novaReceita.valor;
-        objReceita.categoria = novaReceita.categoria;
+        res.send();
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Erro ao atualizar o usuário');
     }
-    res.send();
 });
 
-//deletar uma receita
-api.delete('/receita/deletar/:idRecei',(req,res) => {
-    const idRecei = req.params.idRecei;
-    const index = receitasList.findIndex(receita => parseInt(receita.id) === idRecei);
 
-    receitasList.splice(index, 1);
-    
-    res.send();
-});
+minhaApi.delete('/cargos/:codCargos', async (req, res) => {
+    const codCargos = req.params.codCargos;
 
-//=======================================
+    try {
+        const deletedCargo = await Cargo.destroy({
+            where: {
+                codigo: codCargos
+            }
+        });
 
-//------------------------------//
-//          DESPESAS            //
-//------------------------------//
+        if (!deletedCargo) {
+            res.status(404).send('Cargo nao encontrado');
+        } else  res.send('Cargo deletado');
 
-//======================================
-
-// Develor lista de despesas 
-api.get('/despesa',(req, res) => {
-    let repostaDespesas = '';
-    if(!despesasList.length){
-        res.status(500).send();
-        return;
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Erro ao deletar o cargo');
     }
-    for(const despesa of despesasList){
-        repostaDespesas += '<p>';
-        repostaDespesas += "Id: "+despesa.id+"<br>";
-        repostaDespesas += "Descricao: "+despesa.descricao+"<br>";
-        repostaDespesas += "Valor: "+despesa.valor+"<br>";
-        repostaDespesas += "Categoria: "+despesa.categoria+"<br>";
-        repostaDespesas += '</p>\n';
-    }
-    res.send(repostaDespesas);
 });
 
-//buscar uma despesa especifica
-api.get('/despesa/visualizar/:idDesp',(req, res) => {
-    let repostaDespesas = '';
-
-    const idDesp = req.params.idDesp;
-    const ObjDespesa = funcionarioList.find(despesa => parseInt(despesa.id) === parseInt(idDesp));
-
-    if (!ObjDespesa) {
-        res.status(500).send();
-        return;
-    }
-    repostaDespesas += '<p>';
-    repostaDespesas += "Id: "+ObjDespesa.id+"<br>";
-    repostaDespesas += "Descricao: "+ObjDespesa.descricao+"<br>";
-    repostaDespesas += "Valor: "+ObjDespesa.valor+"<br>";
-    repostaDespesas += "Categoria: "+ObjDespesa.categoria+"<br>";
-    repostaDespesas += '</p>\n';
-    res.send(repostaDespesas);
-});
-
-//adicionar uma nova despesa
-api.post('/despesa/add',(req,res) => {
-    let maiorID = Math.max(...despesasList.map(({ id }) => id));
-
-    if (!despesasList.length) maiorID=0;
-    const objDespesa = {id: maiorID+1,descricao:req.body.descricao ,valor:req.body.valor, categoria:req.body.categoria};
-
-    despesasList.push(objDespesa);
-    res.send('Despesa adicionada');
-    return;
-});
-
-//atualizar uma despesa já existente
-api.put('/despesa/atualizar/:idDesp',(req,res) => {
-    const idDesp = req.params.idDesp;
-    const novaDespesa = {id: parseInt(idDesp),descricao:req.body.descricao ,valor:req.body.valor, categoria:req.body.categoria};
-
-
-    const objDespesa = despesasList.find(despesa => parseInt(despesa.id) === parseInt(idDesp));
-
-    if (objDespesa && novaDespesa) {
-        objDespesa.id = novaDespesa.id;
-        objDespesa.descricao = novaDespesa.descricao;
-        objDespesa.valor = novaDespesa.valor;
-        objDespesa.categoria = novaDespesa.categoria;
-    }
-    res.send();
-});
-
-//deletar uma despesa
-api.delete('/despesa/deletar/:idDesp',(req,res) => {
-    const idDesp = req.params.idDesp;
-    const index = despesasList.findIndex(despesa => parseInt(despesa.id) === idDesp);
-
-    despesasList.splice(index, 1);
-    
-    res.send();
-});
-api.listen(porta, () => {console.log('Minha Primeira API na porta:'+porta)});
+minhaApi.listen(porta, () => {console.log('Minha Primeira API na porta:'+porta)});
