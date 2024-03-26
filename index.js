@@ -71,9 +71,9 @@ minhaApi.get('/usuarios',async(req, res) => {
 
 //Devolver os dados de um usuário específico pelo seu ID na URL
 minhaApi.get('/usuarios/:idUsuario', async(req, res) => {
-    const id = parseInt(req.params.idUsuario);
-    const novoFuncionario = await Usuario.findByPk(id);
-    res.send(novoFuncionario);
+    const funcionarOd = parseInt(req.params.idUsuario);
+    const funcionario = await Usuario.findByPk(funcionarOd);
+    res.send(funcionario);
 });
 /*
 {
