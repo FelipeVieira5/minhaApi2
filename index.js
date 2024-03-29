@@ -160,9 +160,7 @@ minhaApi.get('/cargos', async (req,res) => {
     res.send(cargos);
 });
 
-minhaApi.get('/usuarios/:idUsuario', async(req, res) => {
 
-});
 // Requisição para buscar um cargo pelo seu código
 minhaApi.get('/cargos/:codCargo',async (req, res) => {
     const id = parseInt(req.params.codCargo);
